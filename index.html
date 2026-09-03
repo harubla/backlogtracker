@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Game Tracker - Cloud Sync</title>
+    <title>Backlog Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
-    <!-- Firebase SDK Legacy (Enklast för singelfiler) -->
+
+<!-- Firebase SDK Legacy -->
     <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-database-compat.js"></script>
 
+    <link rel="manifest" id="dynamic-manifest">
     <style>
+        /* --- ALLA TEMAN ÅTERSTÄLLDA --- */
         :root {
             --bg-color: #0d0d16;
             --card-bg: #161625;
@@ -20,7 +22,7 @@
             --neon-purple: #8a2be2;
             --text-main: #e2e8f0;
             --text-muted: #9ca3af;
-            --border-color: rgba(255, 255, 255, 0.05);
+            --border-color: rgba(255, 255, 255, 0.2); /* Ökad synlighet för ramen */
             --input-bg: rgba(0, 0, 0, 0.3);
         }
 
@@ -32,347 +34,476 @@
             --neon-purple: #8b5cf6;
             --text-main: #111827;
             --text-muted: #6b7280;
-            --border-color: rgba(0, 0, 0, 0.1);
-            --input-bg: rgba(0, 0, 0, 0.05);
+            --border-color: rgba(0, 0, 0, 0.2); /* Ökad synlighet för ramen */
+            --input-bg: #ffffff; /* Ändrad till solid vit för att synas i den mörka headern */
         }
 
-        /* FIX FÖR LJUS-TEMA ENLIGT ÖNSKEMÅL */
-        [data-theme="light"] h1, [data-theme="light"] .category-column h2 {
-            color: #ffffff !important;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+        [data-theme="cyberpunk"] {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --neon-cyan: #fcee0a;
+            --neon-magenta: #00f0ff;
+            --neon-purple: #ff003c;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --border-color: #30363d;
+            --input-bg: #0d1117;
         }
-        [data-theme="light"] .game-card:hover {
-            background-color: #1f2937 !important; /* Mörk bakgrund vid hovring */
+
+        [data-theme="dracula"] {
+            --bg-color: #282a36;
+            --card-bg: #44475a;
+            --neon-cyan: #8be9fd;
+            --neon-magenta: #ff79c6;
+            --neon-purple: #bd93f9;
+            --text-main: #f8f8f2;
+            --text-muted: #6272a4;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --input-bg: #282a36;
         }
-        [data-theme="light"] .game-card:hover h3 {
-            color: #d1d5db !important; /* Ljusgrå text vid hovring */
+
+        /* --- BAKGRUNDSSTILAR & AURORA --- */
+        :root {
+            --bg-primary: var(--bg-color);
+            --bg-secondary: var(--card-bg);
+            --aurora-1: rgba(0, 243, 255, 0.08);
+            --aurora-2: rgba(255, 0, 255, 0.08);
+            --aurora-3: transparent;
         }
+        
+        [data-bg-color="dark"] { --bg-primary: #0a0a10; --bg-secondary: #1a1a2e; }
+        [data-bg-color="blue"] { --bg-primary: #020617; --bg-secondary: #1e3a8a; }
+        [data-bg-color="purple"] { --bg-primary: #170b21; --bg-secondary: #4a1d63; }
+        [data-bg-color="crimson"] { --bg-primary: #1a0505; --bg-secondary: #5c0f1c; }
+
+        [data-aurora-color="nebula"] { --bg-primary: #0a0514; --aurora-1: rgba(138, 43, 226, 0.2); --aurora-2: rgba(255, 0, 255, 0.15); --aurora-3: rgba(0, 243, 255, 0.15); }
+        [data-aurora-color="borealis"] { --bg-primary: #020617; --aurora-1: rgba(0, 255, 128, 0.15); --aurora-2: rgba(0, 243, 255, 0.15); --aurora-3: rgba(138, 43, 226, 0.1); }
+        [data-aurora-color="sunset"] { --bg-primary: #1a0b16; --aurora-1: rgba(255, 0, 128, 0.15); --aurora-2: rgba(255, 165, 0, 0.15); --aurora-3: rgba(255, 0, 0, 0.1); }
+        [data-aurora-color="cyber"] { --bg-primary: #0d1117; --aurora-1: rgba(252, 238, 10, 0.15); --aurora-2: rgba(255, 0, 60, 0.15); --aurora-3: rgba(0, 240, 255, 0.1); }
 
         body {
             background-color: var(--bg-color);
             color: var(--text-main);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            transition: background-color 0.3s ease;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
+        body[data-bg="grid"] {
+            background-color: var(--bg-primary);
+            background-image: linear-gradient(0deg, transparent 24%, rgba(138, 43, 226, 0.05) 25%, transparent 27%), linear-gradient(90deg, transparent 24%, rgba(138, 43, 226, 0.05) 25%, transparent 27%);
+            background-size: 50px 50px;
+        }
+        body[data-bg="solid"] { background-image: none; background-color: var(--bg-primary); }
+        body[data-bg="gradient"] { background-image: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%); background-attachment: fixed; }
+        body[data-bg="aurora"] {
+            background-color: var(--bg-primary);
+            background-image: radial-gradient(circle at 15% 10%, var(--aurora-1) 0%, transparent 40%), radial-gradient(circle at 85% 90%, var(--aurora-2) 0%, transparent 40%), radial-gradient(circle at 50% 50%, var(--aurora-3) 0%, transparent 60%);
+            background-attachment: fixed;
+        }
+
+        /* --- NYA SPELKORTS-STILAR (INTEGRERADE) --- */
         .game-card {
             background-color: var(--card-bg);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            transition: all 0.2s ease;
+            border-radius: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
         }
-
-        .search-results {
-            background: var(--card-bg);
-            border: 1px solid var(--neon-cyan);
-            max-height: 300px;
-            overflow-y: auto;
-            z-index: 100;
-        }
-
-        input, select, textarea {
-            background-color: var(--input-bg) !important;
-            border: 1px solid var(--border-color) !important;
-            color: var(--text-main) !important;
+        .game-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--neon-cyan);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
         }
 
         .neon-text-magenta { text-shadow: 0 0 10px var(--neon-magenta); }
         .neon-text-cyan { text-shadow: 0 0 10px var(--neon-cyan); }
+
+        .active-theme-btn { border-color: var(--neon-cyan) !important; background-color: var(--border-color) !important; }
+        .active-ring-btn { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--neon-cyan) !important; transform: scale(1.05); }
+
+        /* Uppdaterad för att inkludera sökfält och sortering korrekt */
+        select, textarea, input[type="number"], input[type="text"] {
+            background-color: var(--input-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            color: var(--text-main) !important;
+        }
     </style>
 </head>
-<body class="p-4 md:p-8 min-h-screen">
+<body class="p-4 md:p-8 min-h-screen flex flex-col" data-bg="grid">
 
-    <!-- Inställningsknapp (Kugghjul) -->
-    <button onclick="openSettingsModal()" class="fixed top-4 right-4 z-50 w-12 h-12 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/20 hover:border-cyan-400 transition-all flex items-center justify-center">
-        <i class="fas fa-cog text-xl"></i>
+    <!-- Synkroniseringsknapp (Konstant) -->
+    <button onclick="promptSyncKey()" class="fixed top-4 left-4 z-[60] w-12 h-12 rounded-full backdrop-blur-md flex justify-center items-center transition-all shadow-xl hover:scale-110" style="background-color: rgba(0, 0, 0, 0.4) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; color: #ffffff !important;" title="Synka med Firebase">
+        <i class="fas fa-sync" style="color: #ffffff !important;"></i>
     </button>
 
-    <header class="max-w-7xl mx-auto mb-10 text-center">
-        <!-- Synk-varning om nyckel saknas -->
-        <div id="sync-warning" class="hidden mb-6 p-4 bg-yellow-500/20 border border-yellow-500 rounded-xl text-yellow-200 text-sm">
-            <i class="fas fa-exclamation-triangle mr-2"></i> Du sparar just nu bara lokalt. 
-            <button onclick="openSettingsModal()" class="underline font-bold ml-1">Klicka här för att ställa in en Synk-nyckel</button>
-        </div>
+    <!-- Inställningsknapp -->
+    <button onclick="openSettingsModal()" class="fixed top-4 right-4 z-[60] w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white flex justify-center items-center hover:border-cyan-400 transition-all shadow-xl">
+        <i class="fas fa-palette"></i>
+    </button>
 
-        <h1 class="text-4xl md:text-6xl font-bold mb-8 text-white neon-text-magenta tracking-tighter">BACKLOGG TRACKER</h1>
+    <header class="mb-10 w-full max-w-7xl mx-auto">
+        <h1 class="text-5xl font-black mb-8 text-center text-white neon-text-magenta tracking-tighter">BACKLOG TRACKER</h1>
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div class="bg-[#161625] p-6 rounded-2xl border border-white/5">
-                <p class="text-xs text-gray-500 uppercase tracking-widest mb-1">Backlogg</p>
-                <p class="text-4xl font-bold text-cyan-400" id="stat-backlog">0</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="bg-black/20 backdrop-blur-sm p-6 rounded-2xl border border-white/5 flex flex-col items-center">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Backlogg</span>
+                <span class="text-4xl font-black text-cyan-400" id="stat-backlog">0</span>
             </div>
-            <div class="bg-[#161625] p-6 rounded-2xl border border-white/5">
-                <p class="text-xs text-gray-500 uppercase tracking-widest mb-1">Timmar Kvar</p>
-                <p class="text-4xl font-bold text-white neon-text-magenta"><span id="stat-time">0</span></p>
+            <div class="bg-black/20 backdrop-blur-sm p-6 rounded-2xl border border-white/5 flex flex-col items-center">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Timmar Kvar</span>
+                <span class="text-4xl font-black" style="color: var(--neon-magenta)"><span id="stat-time">0</span>h</span>
             </div>
-            <div class="bg-[#161625] p-6 rounded-2xl border border-white/5">
-                <p class="text-xs text-gray-500 uppercase tracking-widest mb-1">Genomfört</p>
-                <p class="text-4xl font-bold text-white"><span id="stat-completion">0</span>%</p>
+            <div class="bg-black/20 backdrop-blur-sm p-6 rounded-2xl border border-white/5 flex flex-col items-center">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Slutfört</span>
+                <span class="text-4xl font-black text-emerald-400" id="stat-completion">0%</span>
             </div>
         </div>
 
-        <div class="relative max-w-xl mx-auto">
-            <input type="text" id="search-input" placeholder="Sök och lägg till spel..." class="w-full py-4 px-14 rounded-full text-lg focus:outline-none focus:ring-2 ring-cyan-500 transition-all">
-            <i class="fas fa-search absolute left-6 top-5 text-gray-500 text-xl"></i>
-            <div id="search-results" class="search-results absolute w-full mt-2 rounded-2xl hidden shadow-2xl"></div>
+        <div class="flex flex-col md:flex-row gap-4 bg-black/40 p-4 rounded-2xl border border-white/5">
+            <div class="relative flex-grow">
+                <i class="fas fa-search absolute left-4 top-4 text-gray-500"></i>
+                <input type="text" id="search-input" placeholder="Sök efter spel..." class="w-full rounded-xl py-3.5 pl-12 pr-4 focus:outline-none focus:border-cyan-400">
+                <div id="search-results" class="absolute w-full mt-2 rounded-xl hidden z-50 bg-[#161625] border border-cyan-500/30 shadow-2xl overflow-hidden"></div>
+            </div>
+            <select id="sort-select" class="rounded-xl px-6 py-3 focus:outline-none">
+                <option value="none">Sortera...</option>
+                <option value="timeAsc">Kortast tid</option>
+                <option value="platform">Plattform</option>
+                <option value="yearDesc">Nyaste först</option>
+            </select>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- Kolumn: Backlogg -->
-        <div class="category-column">
-            <h2 class="text-xl font-bold mb-6 border-b-2 border-cyan-400 pb-2 flex justify-between items-center text-white">
-                BACKLOGG <span id="count-backlog" class="text-sm bg-cyan-400 text-black px-3 py-1 rounded-full">0</span>
-            </h2>
-            <div id="col-backlog" class="flex flex-col gap-4"></div>
-        </div>
-
-        <!-- Kolumn: Spelar Nu -->
-        <div class="category-column">
-            <h2 class="text-xl font-bold mb-6 border-b-2 border-magenta-400 pb-2 flex justify-between items-center text-white">
-                SPELAR NU <span id="count-playing" class="text-sm bg-magenta-400 text-white px-3 py-1 rounded-full">0</span>
-            </h2>
-            <div id="col-playing" class="flex flex-col gap-4"></div>
-        </div>
-
-        <!-- Kolumn: Klarat -->
-        <div class="category-column">
-            <h2 class="text-xl font-bold mb-6 border-b-2 border-green-500 pb-2 flex justify-between items-center text-white">
-                KLARAT <span id="count-completed" class="text-sm bg-green-500 text-black px-3 py-1 rounded-full">0</span>
-            </h2>
-            <div id="col-completed" class="flex flex-col gap-4"></div>
+    <main class="flex-grow w-full max-w-7xl mx-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8" id="board">
+            <div class="space-y-4">
+                <h2 class="font-black text-lg border-b-2 border-[#00f3ff] uppercase tracking-tighter text-cyan-400 px-2 flex justify-between">Backlogg <span id="count-backlog">0</span></h2>
+                <div id="col-backlog" class="space-y-4 min-h-[200px]"></div>
+            </div>
+            <div class="space-y-4">
+                <h2 class="font-black text-lg border-b-2 border-[#ff00ff] uppercase tracking-tighter px-2 flex justify-between" style="color: var(--neon-magenta)">Spelar Nu <span id="count-playing">0</span></h2>
+                <div id="col-playing" class="space-y-4 min-h-[200px]"></div>
+            </div>
+            <div class="space-y-4">
+                <h2 class="font-black text-lg border-b-2 border-green-400 uppercase tracking-tighter text-emerald-400 px-2 flex justify-between">Avklarat <span id="count-completed">0</span></h2>
+                <div id="col-completed" class="space-y-4 min-h-[200px]"></div>
+            </div>
         </div>
     </main>
 
-    <!-- SPEL-MODAL -->
-    <div id="game-modal" class="fixed inset-0 bg-black/90 hidden z-[100] flex justify-center items-center p-4 backdrop-blur-md" onclick="if(event.target === this) closeModal()">
-        <div class="bg-[#161625] border border-cyan-500/30 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-8 relative shadow-2xl">
-            <button onclick="closeModal()" class="absolute top-6 right-6 text-gray-500 hover:text-white text-2xl"><i class="fas fa-times"></i></button>
-            <div id="modal-content"></div>
+    <!-- Modal för Speldetaljer -->
+    <div id="game-modal" class="fixed inset-0 bg-black/90 hidden z-[100] flex justify-center items-center backdrop-blur-md p-4" onclick="if(event.target === this) closeModal()">
+        <div class="border border-white/10 rounded-3xl max-w-2xl w-full relative shadow-2xl overflow-hidden" style="background-color: var(--card-bg); color: var(--text-main);">
+            <button onclick="closeModal()" class="absolute top-6 right-6 z-20 w-10 h-10 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-red-500">
+                <i class="fas fa-times"></i>
+            </button>
+            <div id="modal-content" class="overflow-y-auto max-h-[90vh]"></div>
         </div>
     </div>
 
-    <!-- INSTÄLLNINGAR -->
-    <div id="settings-modal" class="fixed inset-0 bg-black/95 hidden z-[110] flex justify-center items-center p-4" onclick="if(event.target === this) closeSettingsModal()">
-        <div class="bg-[#161625] border border-white/10 rounded-3xl max-w-md w-full p-8 shadow-2xl">
-            <h2 class="text-2xl font-bold mb-6 text-white neon-text-cyan text-center">Inställningar</h2>
+    <!-- ÅTERSTÄLLD INSTÄLLNINGS-MODAL -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/80 hidden z-[110] flex justify-center items-center backdrop-blur-sm" onclick="if(event.target === this) closeSettingsModal()">
+        <div class="bg-[#161625] border border-[#00f3ff]/30 rounded-3xl max-w-md w-full m-4 p-6 relative shadow-2xl">
+            <button onclick="closeSettingsModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white bg-black/50 w-8 h-8 rounded-full flex justify-center items-center"><i class="fas fa-times"></i></button>
+            <h2 class="text-2xl font-bold text-white mb-6 neon-text-cyan">Visuella Inställningar</h2>
             
-            <div class="mb-8 p-4 bg-black/20 rounded-2xl border border-white/5">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-3 tracking-widest text-center">Synkronisering (Moln)</label>
-                <div class="flex gap-2">
-                    <input type="text" id="sync-key-input" placeholder="Välj ett hemligt ord..." class="flex-grow p-3 rounded-xl border-none focus:ring-2 ring-magenta-500">
-                    <button onclick="saveSyncKey()" class="bg-magenta-500 text-white px-6 py-3 rounded-xl font-bold hover:bg-magenta-400 transition-all">Spara</button>
+            <div class="space-y-6">
+                <div>
+                    <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Färgtema</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button data-theme-val="synthwave" onclick="changeTheme('synthwave')" class="theme-btn p-3 rounded-lg border border-white/5 bg-black/30 hover:border-cyan-400 text-left text-white text-sm">Synthwave</button>
+                        <button data-theme-val="light" onclick="changeTheme('light')" class="theme-btn p-3 rounded-lg border border-white/5 bg-black/30 hover:border-cyan-400 text-left text-white text-sm">Ljust</button>
+                        <button data-theme-val="cyberpunk" onclick="changeTheme('cyberpunk')" class="theme-btn p-3 rounded-lg border border-white/5 bg-black/30 hover:border-cyan-400 text-left text-white text-sm">Cyberpunk</button>
+                        <button data-theme-val="dracula" onclick="changeTheme('dracula')" class="theme-btn p-3 rounded-lg border border-white/5 bg-black/30 hover:border-cyan-400 text-left text-white text-sm">Dracula</button>
+                    </div>
                 </div>
-                <p class="text-[10px] text-gray-600 mt-4 leading-relaxed text-center">Skriv in samma ord på din mobil och dator för att se samma lista.</p>
-            </div>
 
-            <div class="flex flex-col gap-3">
-                <button onclick="changeTheme('synthwave')" class="w-full p-4 rounded-xl bg-gray-800 text-white font-bold hover:bg-gray-700 transition-all">Mörkt Tema (Neon)</button>
-                <button onclick="changeTheme('light')" class="w-full p-4 rounded-xl bg-gray-100 text-gray-900 font-bold hover:bg-white transition-all border border-gray-300">Ljust Tema</button>
+                <div>
+                    <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Bakgrundsstil</h3>
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <button data-bg-val="grid" onclick="changeBg('grid')" class="bg-btn p-3 rounded-lg border border-white/5 bg-black/30 text-white text-sm">Rutnät</button>
+                        <button data-bg-val="solid" onclick="changeBg('solid')" class="bg-btn p-3 rounded-lg border border-white/5 bg-black/30 text-white text-sm">Enfärgad</button>
+                        <button data-bg-val="gradient" onclick="changeBg('gradient')" class="bg-btn p-3 rounded-lg border border-white/5 bg-black/30 text-white text-sm">Toning</button>
+                        <button data-bg-val="aurora" onclick="changeBg('aurora')" class="bg-btn p-3 rounded-lg border border-white/5 bg-black/30 text-white text-sm">Aurora Glow</button>
+                    </div>
+
+                    <div id="bg-color-options">
+                        <h4 class="text-[10px] font-black text-gray-500 mb-2 uppercase flex items-center gap-2"><i class="fas fa-caret-down"></i> Välj Nyans</h4>
+                        <div id="standard-colors-container" class="grid grid-cols-4 gap-2">
+                            <button data-bgcolor-val="dark" onclick="changeBgColor('dark')" class="bg-color-btn h-10 rounded-lg bg-slate-900 border border-gray-600"></button>
+                            <button data-bgcolor-val="blue" onclick="changeBgColor('blue')" class="bg-color-btn h-10 rounded-lg bg-blue-900 border border-gray-600"></button>
+                            <button data-bgcolor-val="purple" onclick="changeBgColor('purple')" class="bg-color-btn h-10 rounded-lg bg-purple-900 border border-gray-600"></button>
+                            <button data-bgcolor-val="crimson" onclick="changeBgColor('crimson')" class="bg-color-btn h-10 rounded-lg bg-red-950 border border-gray-600"></button>
+                        </div>
+                        <div id="aurora-colors-container" class="grid grid-cols-4 gap-2 hidden">
+                            <button data-auroracolor-val="nebula" onclick="changeAuroraColor('nebula')" class="aurora-color-btn h-10 rounded-lg bg-gradient-to-br from-purple-500 to-cyan-500"></button>
+                            <button data-auroracolor-val="borealis" onclick="changeAuroraColor('borealis')" class="aurora-color-btn h-10 rounded-lg bg-gradient-to-br from-green-500 to-blue-500"></button>
+                            <button data-auroracolor-val="sunset" onclick="changeAuroraColor('sunset')" class="aurora-color-btn h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-500"></button>
+                            <button data-auroracolor-val="cyber" onclick="changeAuroraColor('cyber')" class="aurora-color-btn h-10 rounded-lg bg-gradient-to-br from-yellow-400 to-red-600"></button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // --- DIN KONFIGURATION ---
+        // --- FIREBASE CONFIG & SYNC LOGIK ---
         const firebaseConfig = {
-            apiKey: "AIzaSyBkVy8cWo0rJH57smO2ZpuGImvinkTqAoc",
+            apiKey: "DIN_API_KEY_HÄRIFRÅN_FIREBASE", // Denna måste du hämta från Firebase
             authDomain: "backlogg-tracker.firebaseapp.com",
-            databaseURL: "https://backlogg-tracker-default-rtdb.europe-west1.firebasedatabase.app",
+            databaseURL: "https://backlogg-tracker-default-rtdb.europe-west1.firebasedatabase.app/", // Här klistrade jag in din länk
             projectId: "backlogg-tracker",
-            storageBucket: "backlogg-tracker.firebasestorage.app",
-            messagingSenderId: "976284985156",
-            appId: "1:976284985156:web:02471527103a2b966c5911"
+            storageBucket: "backlogg-tracker.appspot.com",
+            messagingSenderId: "DITT_ID",
+            appId: "DITT_APP_ID"
         };
-
-        // Initiera Firebase
         firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+        const database = firebase.database();
+        let currentSyncKey = localStorage.getItem('neon_sync_key') || '';
 
-        let games = [];
-        let syncKey = localStorage.getItem('bt_synckey') || "";
-        let theme = localStorage.getItem('bt_theme') || 'synthwave';
-
-        // --- SYNKKONTROLL ---
-        function saveSyncKey() {
-            const val = document.getElementById('sync-key-input').value.trim();
-            if (val.length < 3) { alert("För kort nyckel!"); return; }
-            localStorage.setItem('bt_synckey', val);
-            window.location.reload(); 
+        function promptSyncKey() {
+            const key = prompt('Ange din synk-nyckel för att ansluta till molnet:', currentSyncKey);
+            if (key !== null) {
+                currentSyncKey = key.trim();
+                localStorage.setItem('neon_sync_key', currentSyncKey);
+                if (currentSyncKey) {
+                    syncFromFirebase();
+                }
+            }
         }
 
-        function initApp() {
-            document.documentElement.setAttribute('data-theme', theme);
-            if (syncKey) {
-                document.getElementById('sync-warning').classList.add('hidden');
-                document.getElementById('sync-key-input').value = syncKey;
-                // Koppla till Firebase
-                db.ref('users/' + syncKey).on('value', (snapshot) => {
+        function syncToFirebase() {
+            if (currentSyncKey) {
+                database.ref('backlogs/' + currentSyncKey).set(games).catch(err => console.error("Firebase sync error:", err));
+            }
+        }
+
+        function syncFromFirebase() {
+            if (currentSyncKey) {
+                database.ref('backlogs/' + currentSyncKey).once('value').then((snapshot) => {
                     const data = snapshot.val();
-                    games = data || [];
-                    renderBoard();
-                });
-            } else {
-                document.getElementById('sync-warning').classList.remove('hidden');
-                games = JSON.parse(localStorage.getItem('bt_local_backup')) || [];
-                renderBoard();
+                    if (data) {
+                        games = data;
+                        localStorage.setItem('neon_games', JSON.stringify(games));
+                        renderBoard();
+                        alert('Data synkroniserad från molnet!');
+                    } else {
+                        // Om ingen data finns på molnet ännu, spara upp befintlig lokal data
+                        syncToFirebase();
+                        alert('Ny moln-synk skapad för nyckeln!');
+                    }
+                }).catch(err => console.error("Firebase fetch error:", err));
             }
         }
 
-        const saveGames = () => {
-            if (syncKey) {
-                db.ref('users/' + syncKey).set(games);
-            } else {
-                localStorage.setItem('bt_local_backup', JSON.stringify(games));
-                renderBoard();
-            }
-        };
 
-        // --- SPELFUNKTIONER ---
-        const RAWG_KEY = 'a9b2d63374a4490d8a925c69e5622e2a';
+        // --- VISUELL LOGIK (ÅTERSTÄLLD) ---
+        let savedTheme = localStorage.getItem('neon_theme') || 'synthwave';
+        let savedBg = localStorage.getItem('neon_bg') || 'grid';
+        let savedBgColor = localStorage.getItem('neon_bg_color') || 'dark';
+        let savedAuroraColor = localStorage.getItem('neon_aurora_color') || 'nebula';
 
-        async function searchGames(query) {
-            if (query.length < 2) return;
-            const res = await fetch(`https://api.rawg.io/api/games?search=${query}&key=${RAWG_KEY}&page_size=6`);
-            const data = await res.json();
-            const resultsDiv = document.getElementById('search-results');
-            resultsDiv.innerHTML = '';
-            resultsDiv.classList.remove('hidden');
-            
-            data.results.forEach(g => {
-                const item = document.createElement('div');
-                item.className = 'p-4 border-b border-white/5 hover:bg-cyan-500/10 cursor-pointer flex items-center gap-4 transition-all';
-                item.innerHTML = `<img src="${g.background_image}" class="w-12 h-16 object-cover rounded shadow"> <div><p class="font-bold text-sm text-white">${g.name}</p><p class="text-[10px] text-gray-500">${g.released ? g.released.split('-')[0] : 'Okänt'}</p></div>`;
-                item.onclick = () => {
-                    games.push({
-                        uid: Date.now().toString(),
-                        title: g.name,
-                        image: g.background_image,
-                        playtime: g.playtime || 15,
-                        status: 'backlog',
-                        progress: 0,
-                        notes: ""
-                    });
-                    saveGames();
-                    resultsDiv.classList.add('hidden');
-                    document.getElementById('search-input').value = '';
-                };
-                resultsDiv.appendChild(item);
+        function initVisuals() {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.body.setAttribute('data-bg', savedBg);
+            document.body.setAttribute('data-bg-color', savedBgColor);
+            document.body.setAttribute('data-aurora-color', savedAuroraColor);
+            updateActiveButtons();
+            toggleBgColorOptions();
+        }
+
+        function updateActiveButtons() {
+            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.toggle('active-theme-btn', btn.dataset.themeVal === savedTheme));
+            document.querySelectorAll('.bg-btn').forEach(btn => btn.classList.toggle('active-theme-btn', btn.dataset.bgVal === savedBg));
+            document.querySelectorAll('.bg-color-btn').forEach(btn => btn.classList.toggle('active-ring-btn', btn.dataset.bgcolorVal === savedBgColor));
+            document.querySelectorAll('.aurora-color-btn').forEach(btn => btn.classList.toggle('active-ring-btn', btn.dataset.auroracolorVal === savedAuroraColor));
+        }
+
+        function toggleBgColorOptions() {
+            const isAurora = savedBg === 'aurora';
+            document.getElementById('standard-colors-container').classList.toggle('hidden', isAurora);
+            document.getElementById('aurora-colors-container').classList.toggle('hidden', !isAurora);
+        }
+
+        function changeTheme(theme) { savedTheme = theme; document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('neon_theme', theme); updateActiveButtons(); }
+        function changeBg(bg) { savedBg = bg; document.body.setAttribute('data-bg', bg); localStorage.setItem('neon_bg', bg); toggleBgColorOptions(); updateActiveButtons(); }
+        function changeBgColor(color) { savedBgColor = color; document.body.setAttribute('data-bg-color', color); localStorage.setItem('neon_bg_color', color); updateActiveButtons(); }
+        function changeAuroraColor(color) { savedAuroraColor = color; document.body.setAttribute('data-aurora-color', color); localStorage.setItem('neon_aurora_color', color); updateActiveButtons(); }
+        
+        function openSettingsModal() { document.getElementById('settings-modal').classList.remove('hidden'); }
+        function closeSettingsModal() { document.getElementById('settings-modal').classList.add('hidden'); }
+
+        // --- SPEL-LOGIK ---
+        let games = JSON.parse(localStorage.getItem('neon_games')) || [];
+        let currentSort = 'none';
+        const RAWG_API_KEY = 'a9b2d63374a4490d8a925c69e5622e2a';
+
+        const saveGames = () => { localStorage.setItem('neon_games', JSON.stringify(games)); renderBoard(); syncToFirebase(); };
+
+        function renderBoard() {
+            const cols = { 'backlog': document.getElementById('col-backlog'), 'playing': document.getElementById('col-playing'), 'completed': document.getElementById('col-completed') };
+            Object.values(cols).forEach(col => col.innerHTML = '');
+            let counts = { backlog: 0, playing: 0, completed: 0 };
+            let totalRemainingTime = 0;
+
+            const sortedGames = getSortedGames();
+            sortedGames.forEach(game => {
+                counts[game.status]++;
+                if (game.status !== 'completed') totalRemainingTime += (game.playtime || 0) * (1 - (game.progress / 100));
+
+                const card = document.createElement('div');
+                card.className = 'game-card flex flex-row group';
+                
+                let platClass = "bg-gray-500/20 text-gray-400";
+                const p = game.platform.toLowerCase();
+                if (p.includes('ps')) platClass = "bg-blue-500/20 text-blue-400";
+                else if (p.includes('xbox')) platClass = "bg-green-500/20 text-green-400";
+                else if (p.includes('switch')) platClass = "bg-red-500/20 text-red-400";
+
+                card.innerHTML = `
+                    <div class="flex flex-1 p-3 gap-4 cursor-pointer" onclick="openModal('${game.uid}')">
+                        <img src="${game.image}" class="w-16 h-20 object-cover rounded-lg border border-white/5" />
+                        <div class="flex-grow min-w-0 flex flex-col justify-center">
+                            <h3 class="font-bold text-sm text-inherit truncate mb-1 group-hover:text-cyan-400 transition-colors">${game.title}</h3>
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-[10px] font-black px-2 py-0.5 rounded-full ${platClass}">${game.platform}</span>
+                                <span class="text-[10px] font-bold text-gray-500">${game.progress}%</span>
+                            </div>
+                            <div class="w-full bg-black/40 h-1.5 rounded-full overflow-hidden">
+                                <div class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full" style="width: ${game.progress}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="w-11 border-l border-white/5 flex flex-col bg-black/10">
+                        <div class="flex-1 flex items-center justify-center relative hover:bg-white/5 transition-colors">
+                            <select onchange="updateGameStatus('${game.uid}', this.value)" class="absolute inset-0 opacity-0 cursor-pointer">
+                                <option value="backlog" ${game.status==='backlog'?'selected':''}>Backlogg</option>
+                                <option value="playing" ${game.status==='playing'?'selected':''}>Spelar</option>
+                                <option value="completed" ${game.status==='completed'?'selected':''}>Klarat</option>
+                            </select>
+                            <i class="fas fa-retweet text-xs text-gray-500"></i>
+                        </div>
+                        <button onclick="deleteGame('${game.uid}')" class="flex-1 flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-500/10"><i class="fas fa-trash-alt text-xs"></i></button>
+                    </div>
+                `;
+                cols[game.status].appendChild(card);
             });
+
+            document.getElementById('stat-backlog').innerText = counts.backlog;
+            document.getElementById('stat-time').innerText = Math.round(totalRemainingTime);
+            document.getElementById('stat-completion').innerText = games.length > 0 ? Math.round((counts.completed / games.length) * 100) + '%' : '0%';
+            document.getElementById('count-backlog').innerText = counts.backlog;
+            document.getElementById('count-playing').innerText = counts.playing;
+            document.getElementById('count-completed').innerText = counts.completed;
         }
 
         function openModal(uid) {
             const game = games.find(g => g.uid === uid);
-            const content = document.getElementById('modal-content');
-            content.innerHTML = `
-                <img src="${game.image}" class="w-full h-56 object-cover rounded-2xl mb-6 shadow-xl">
-                <h3 class="text-3xl font-bold mb-6 text-white">${game.title}</h3>
-                
-                <div class="grid grid-cols-2 gap-6 mb-8">
-                    <div class="bg-black/20 p-4 rounded-2xl">
-                        <label class="text-[10px] uppercase text-gray-500 font-bold tracking-widest block mb-2">Status</label>
-                        <select onchange="updateGame('${game.uid}', 'status', this.value)" class="w-full bg-transparent p-0 border-none text-cyan-400 font-bold focus:ring-0">
-                            <option value="backlog" ${game.status === 'backlog' ? 'selected' : ''}>Backlogg</option>
-                            <option value="playing" ${game.status === 'playing' ? 'selected' : ''}>Spelar</option>
-                            <option value="completed" ${game.status === 'completed' ? 'selected' : ''}>Klarat</option>
-                        </select>
+            if (!game) return;
+            const modalContent = document.getElementById('modal-content');
+            modalContent.innerHTML = `
+                <div class="relative h-64">
+                    <img src="${game.image}" class="w-full h-full object-cover" />
+                    <div class="absolute inset-0" style="background: linear-gradient(to top, var(--card-bg), transparent);"></div>
+                </div>
+                <div class="p-8 space-y-6">
+                    <h2 class="text-3xl font-black mb-2" style="color: var(--text-main)">${game.title}</h2>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-black uppercase" style="color: var(--text-muted)">Speltid (h)</label>
+                            <input type="number" value="${game.playtime}" onchange="updatePlaytime('${game.uid}', this.value)" 
+                                   class="w-full p-3 rounded-xl mt-1 outline-none focus:border-cyan-400 border transition-colors">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black uppercase" style="color: var(--text-muted)">Status</label>
+                            <select onchange="updateGameStatus('${game.uid}', this.value); openModal('${game.uid}')" 
+                                    class="w-full p-3 rounded-xl mt-1 outline-none focus:border-cyan-400 border transition-colors">
+                                <option value="backlog" ${game.status==='backlog'?'selected':''}>Backlogg</option>
+                                <option value="playing" ${game.status==='playing'?'selected':''}>Spelar Nu</option>
+                                <option value="completed" ${game.status==='completed'?'selected':''}>Klarat</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="bg-black/20 p-4 rounded-2xl">
-                        <label class="text-[10px] uppercase text-gray-500 font-bold tracking-widest block mb-2">Total tid (h)</label>
-                        <input type="number" value="${game.playtime}" onchange="updateGame('${game.uid}', 'playtime', this.value)" class="w-full bg-transparent p-0 border-none text-magenta-400 font-bold focus:ring-0">
+
+                    <div>
+                        <label class="flex justify-between uppercase text-[10px] font-black" style="color: var(--text-muted)">
+                            Progression <span>${game.progress}%</span>
+                        </label>
+                        <input type="range" min="0" max="100" value="${game.progress}" onchange="updateProgress('${game.uid}', this.value)" 
+                               class="w-full mt-2 accent-cyan-400">
+                    </div>
+
+                    <div>
+                        <label class="text-[10px] font-black uppercase" style="color: var(--text-muted)">Anteckningar</label>
+                        <textarea oninput="updateNotes('${game.uid}', this.value)" 
+                                  class="w-full h-32 p-4 rounded-2xl mt-1 resize-none outline-none focus:border-cyan-400 border transition-colors">${game.notes || ''}</textarea>
                     </div>
                 </div>
-
-                <div class="mb-8">
-                    <label class="flex justify-between text-[10px] uppercase text-gray-500 font-bold tracking-widest mb-4">Progression <span>${game.progress}%</span></label>
-                    <input type="range" value="${game.progress}" class="w-full accent-cyan-400" onchange="updateGame('${game.uid}', 'progress', this.value)">
-                </div>
-
-                <div class="mb-8">
-                    <label class="text-[10px] uppercase text-gray-500 font-bold tracking-widest mb-3 block">Mina Anteckningar</label>
-                    <textarea class="w-full h-32 p-4 rounded-2xl text-sm bg-black/20 border-white/5 focus:ring-1 ring-magenta-500 resize-none" placeholder="Strategier, minnen eller att göra..." oninput="updateGame('${game.uid}', 'notes', this.value)">${game.notes || ''}</textarea>
-                </div>
-
-                <button onclick="deleteGame('${game.uid}')" class="w-full text-red-500/50 hover:text-red-500 text-xs transition-all"><i class="fas fa-trash mr-2"></i>Ta bort från listan</button>
             `;
             document.getElementById('game-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
         }
 
-        function updateGame(uid, field, val) {
-            const idx = games.findIndex(g => g.uid === uid);
-            if (field === 'playtime' || field === 'progress') val = parseFloat(val);
-            games[idx][field] = val;
-            saveGames();
-            if (field === 'status') closeModal();
+        function closeModal() { document.getElementById('game-modal').classList.add('hidden'); document.body.style.overflow = 'auto'; }
+        function updateGameStatus(uid, s) { const g = games.find(x => x.uid === uid); if (g) { g.status = s; if (s === 'completed') g.progress = 100; saveGames(); } }
+        function updateProgress(uid, v) { const g = games.find(x => x.uid === uid); if (g) { g.progress = parseInt(v); saveGames(); } }
+        function updateNotes(uid, t) { const g = games.find(x => x.uid === uid); if (g) { g.notes = t; localStorage.setItem('neon_games', JSON.stringify(games)); syncToFirebase(); } }
+        function updatePlaytime(uid, h) { const g = games.find(x => x.uid === uid); if (g) { g.playtime = parseFloat(h) || 0; saveGames(); } }
+        function deleteGame(uid) { if(confirm('Ta bort?')) { games = games.filter(x => x.uid !== uid); saveGames(); } }
+        function getSortedGames() {
+            let s = [...games];
+            if (currentSort === 'timeAsc') s.sort((a, b) => (a.playtime || 0) - (b.playtime || 0));
+            else if (currentSort === 'platform') s.sort((a, b) => a.platform.localeCompare(b.platform));
+            else if (currentSort === 'yearDesc') s.sort((a, b) => b.year - a.year);
+            return s;
         }
 
-        function deleteGame(uid) {
-            if (confirm("Radera spelet?")) {
-                games = games.filter(g => g.uid !== uid);
-                saveGames();
-                closeModal();
-            }
-        }
+        // --- SÖK ---
+        const searchInput = document.getElementById('search-input');
+        const searchResultsDiv = document.getElementById('search-results');
+        let searchTimeout;
 
-        function renderBoard() {
-            const cols = { backlog: [], playing: [], completed: [] };
-            let totalRemainingTime = 0;
-            
-            games.forEach(g => {
-                cols[g.status].push(g);
-                if (g.status !== 'completed') {
-                    totalRemainingTime += g.playtime * (1 - (g.progress / 100));
-                }
-            });
-
-            document.getElementById('stat-backlog').innerText = cols.backlog.length;
-            document.getElementById('stat-time').innerText = Math.round(totalRemainingTime) + "h";
-            document.getElementById('stat-completion').innerText = games.length ? Math.round((cols.completed.length / games.length) * 100) : 0;
-
-            ['backlog', 'playing', 'completed'].forEach(s => {
-                const container = document.getElementById(`col-${s}`);
-                document.getElementById(`count-${s}`).innerText = cols[s].length;
-                container.innerHTML = '';
-                
-                cols[s].forEach(g => {
-                    const card = document.createElement('div');
-                    card.className = 'game-card p-3 flex items-center gap-4 cursor-pointer hover:border-white/20';
-                    card.onclick = () => openModal(g.uid);
-                    card.innerHTML = `
-                        <img src="${g.image}" class="w-14 h-18 object-cover rounded-lg shadow-md">
-                        <div class="flex-grow min-w-0">
-                            <h3 class="font-bold text-sm text-white truncate">${g.title}</h3>
-                            <div class="flex items-center gap-2 mt-2">
-                                <div class="flex-grow bg-gray-900 h-1 rounded-full">
-                                    <div class="bg-gradient-to-r from-cyan-400 to-blue-500 h-full rounded-full" style="width: ${g.progress}%"></div>
-                                </div>
-                                <span class="text-[9px] text-gray-500 font-bold">${g.progress}%</span>
-                            </div>
-                        </div>
-                    `;
-                    container.appendChild(card);
-                });
-            });
-        }
-
-        // --- UI HELPERS ---
-        function changeTheme(t) {
-            theme = t;
-            document.documentElement.setAttribute('data-theme', t);
-            localStorage.setItem('bt_theme', t);
-            closeSettingsModal();
-        }
-
-        function closeModal() { document.getElementById('game-modal').classList.add('hidden'); }
-        function openSettingsModal() { document.getElementById('settings-modal').classList.remove('hidden'); }
-        function closeSettingsModal() { document.getElementById('settings-modal').classList.add('hidden'); }
-
-        document.getElementById('search-input').addEventListener('input', (e) => {
-            clearTimeout(window.sTimer);
-            window.sTimer = setTimeout(() => searchGames(e.target.value), 400);
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value;
+            clearTimeout(searchTimeout);
+            if (query.length < 2) { searchResultsDiv.classList.add('hidden'); return; }
+            searchTimeout = setTimeout(async () => {
+                const r = await fetch(`https://api.rawg.io/api/games?search=${query}&key=${RAWG_API_KEY}&page_size=6`);
+                const d = await r.json();
+                renderResults(d.results);
+            }, 500);
         });
 
-        initApp();
+        // Event listener för sortering
+        document.getElementById('sort-select').addEventListener('change', (e) => {
+            currentSort = e.target.value;
+            renderBoard();
+        });
+
+        function renderResults(res) {
+            searchResultsDiv.innerHTML = '';
+            searchResultsDiv.classList.remove('hidden');
+            res.forEach(g => {
+                const d = document.createElement('div');
+                d.className = 'p-3 border-b border-white/5 hover:bg-cyan-500/10 cursor-pointer flex items-center gap-3';
+                d.innerHTML = `<img src="${g.background_image}" class="w-10 h-12 object-cover rounded" /><div><p class="font-bold text-white text-sm">${g.name}</p></div>`;
+                d.onclick = () => {
+                    games.push({ uid: Date.now().toString(), title: g.name, image: g.background_image, platform: g.platforms?.[0]?.platform.name || 'PC', year: g.released?.split('-')[0] || '?', playtime: g.playtime || 15, status: 'backlog', progress: 0, notes: '' });
+                    saveGames(); searchInput.value = ''; searchResultsDiv.classList.add('hidden');
+                };
+                searchResultsDiv.appendChild(d);
+            });
+        }
+
+        initVisuals();
+        renderBoard();
+        
+        // Hämta från Firebase automatiskt om en nyckel redan finns sparad
+        if (currentSyncKey) {
+            syncFromFirebase();
+        }
     </script>
 </body>
 </html>
