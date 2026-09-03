@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Game Tracker - Cloud Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK Legacy (Enklast för singelfiler) -->
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0d0d16;
+            --card-bg: #161625;
+            --neon-cyan: #00f3ff;
+            --neon-magenta: #ff00ff;
+            --neon-purple: #8a2be2;
+            --text-main: #e2e8f0;
+            --text-muted: #9ca3af;
+            --border-color: rgba(255, 255, 255, 0.05);
+            --input-bg: rgba(0, 0, 0, 0.3);
+        }
+
+        [data-theme="light"] {
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --neon-cyan: #0ea5e9;
+            --neon-magenta: #d946ef;
+            --neon-purple: #8b5cf6;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --border-color: rgba(0, 0, 0, 0.1);
+            --input-bg: rgba(0, 0, 0, 0.05);
+        }
+
+        /* FIX FÖR LJUS-TEMA ENLIGT ÖNSKEMÅL */
+        [data-theme="light"] h1, [data-theme="light"] .category-column h2 {
+            color: #ffffff !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+        }
+        [data-theme="light"] .game-card:hover {
+            background-color: #1f2937 !important; /* Mörk bakgrund vid hovring */
+        }
+        [data-theme="light"] .game-card:hover h3 {
+            color: #d1d5db !important; /* Ljusgrå text vid hovring */
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            transition: background-color 0.3s ease;
+        }
+
+        .game-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .search-results {
+            background: var(--card-bg);
+            border: 1px solid var(--neon-cyan);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        input, select, textarea {
+            background-color: var(--input-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            color: var(--text-main) !important;
+        }
+
+        .neon-text-magenta { text-shadow: 0 0 10px var(--neon-magenta); }
+        .neon-text-cyan { text-shadow: 0 0 10px var(--neon-cyan); }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <!-- Inställningsknapp (Kugghjul) -->
+    <button onclick="openSettingsModal()" class="fixed top-4 right-4 z-50 w-12 h-12 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/20 hover:border-cyan-400 transition-all flex items-center justify-center">
+        <i class="fas fa-cog text-xl"></i>
+    </button>
+
+    <header class="max-w-7xl mx-auto mb-10 text-center">
+        <!-- Synk-varning om nyckel saknas -->
+        <div id="sync-warning" class="hidden mb-6 p-4 bg-yellow-500/20 border border-yellow-500 rounded-xl text-yellow-200 text-sm">
+            <i class="fas fa-exclamation-triangle mr-2"></i> Du sparar just nu bara lokalt. 
+            <button onclick="openSettingsModal()" class="underline font-bold ml-1">Klicka här för att ställa in en Synk-nyckel</button>
+        </div>
+
+        <h1 class="text-4xl md:text-6xl font-bold mb-8 text-white neon-text-magenta tracking-tighter">BACKLOGG TRACKER</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-[#161625] p-6 rounded-2xl border border-white/5">
+                <p class="text-xs text-gray-500 uppercase tracking-widest mb-1">Backlogg</p>
+                <p class="text-4xl font-bold text-cyan-400" id="stat-backlog">0</p>
+            </div>
+            <div class="bg-[#161625] p-6 rounded-2xl border border-white/5">
+                <p class="text-xs text-gray-500 uppercase tracking-widest mb-1">Timmar Kvar</p>
+                <p class="text-4xl font-bold text-white neon-text-magenta"><span id="stat-time">0</span></p>
+            </div>
+            <div class="bg-[#161625] p-6 rounded-2xl border border-white/5">
+                <p class="text-xs text-gray-500 uppercase tracking-widest mb-1">Genomfört</p>
+                <p class="text-4xl font-bold text-white"><span id="stat-completion">0</span>%</p>
+            </div>
+        </div>
+
+        <div class="relative max-w-xl mx-auto">
+            <input type="text" id="search-input" placeholder="Sök och lägg till spel..." class="w-full py-4 px-14 rounded-full text-lg focus:outline-none focus:ring-2 ring-cyan-500 transition-all">
+            <i class="fas fa-search absolute left-6 top-5 text-gray-500 text-xl"></i>
+            <div id="search-results" class="search-results absolute w-full mt-2 rounded-2xl hidden shadow-2xl"></div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Kolumn: Backlogg -->
+        <div class="category-column">
+            <h2 class="text-xl font-bold mb-6 border-b-2 border-cyan-400 pb-2 flex justify-between items-center text-white">
+                BACKLOGG <span id="count-backlog" class="text-sm bg-cyan-400 text-black px-3 py-1 rounded-full">0</span>
+            </h2>
+            <div id="col-backlog" class="flex flex-col gap-4"></div>
+        </div>
+
+        <!-- Kolumn: Spelar Nu -->
+        <div class="category-column">
+            <h2 class="text-xl font-bold mb-6 border-b-2 border-magenta-400 pb-2 flex justify-between items-center text-white">
+                SPELAR NU <span id="count-playing" class="text-sm bg-magenta-400 text-white px-3 py-1 rounded-full">0</span>
+            </h2>
+            <div id="col-playing" class="flex flex-col gap-4"></div>
+        </div>
+
+        <!-- Kolumn: Klarat -->
+        <div class="category-column">
+            <h2 class="text-xl font-bold mb-6 border-b-2 border-green-500 pb-2 flex justify-between items-center text-white">
+                KLARAT <span id="count-completed" class="text-sm bg-green-500 text-black px-3 py-1 rounded-full">0</span>
+            </h2>
+            <div id="col-completed" class="flex flex-col gap-4"></div>
+        </div>
+    </main>
+
+    <!-- SPEL-MODAL -->
+    <div id="game-modal" class="fixed inset-0 bg-black/90 hidden z-[100] flex justify-center items-center p-4 backdrop-blur-md" onclick="if(event.target === this) closeModal()">
+        <div class="bg-[#161625] border border-cyan-500/30 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-8 relative shadow-2xl">
+            <button onclick="closeModal()" class="absolute top-6 right-6 text-gray-500 hover:text-white text-2xl"><i class="fas fa-times"></i></button>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <!-- INSTÄLLNINGAR -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/95 hidden z-[110] flex justify-center items-center p-4" onclick="if(event.target === this) closeSettingsModal()">
+        <div class="bg-[#161625] border border-white/10 rounded-3xl max-w-md w-full p-8 shadow-2xl">
+            <h2 class="text-2xl font-bold mb-6 text-white neon-text-cyan text-center">Inställningar</h2>
+            
+            <div class="mb-8 p-4 bg-black/20 rounded-2xl border border-white/5">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-3 tracking-widest text-center">Synkronisering (Moln)</label>
+                <div class="flex gap-2">
+                    <input type="text" id="sync-key-input" placeholder="Välj ett hemligt ord..." class="flex-grow p-3 rounded-xl border-none focus:ring-2 ring-magenta-500">
+                    <button onclick="saveSyncKey()" class="bg-magenta-500 text-white px-6 py-3 rounded-xl font-bold hover:bg-magenta-400 transition-all">Spara</button>
+                </div>
+                <p class="text-[10px] text-gray-600 mt-4 leading-relaxed text-center">Skriv in samma ord på din mobil och dator för att se samma lista.</p>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <button onclick="changeTheme('synthwave')" class="w-full p-4 rounded-xl bg-gray-800 text-white font-bold hover:bg-gray-700 transition-all">Mörkt Tema (Neon)</button>
+                <button onclick="changeTheme('light')" class="w-full p-4 rounded-xl bg-gray-100 text-gray-900 font-bold hover:bg-white transition-all border border-gray-300">Ljust Tema</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DIN KONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBkVy8cWo0rJH57smO2ZpuGImvinkTqAoc",
+            authDomain: "backlogg-tracker.firebaseapp.com",
+            databaseURL: "https://backlogg-tracker-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "backlogg-tracker",
+            storageBucket: "backlogg-tracker.firebasestorage.app",
+            messagingSenderId: "976284985156",
+            appId: "1:976284985156:web:02471527103a2b966c5911"
+        };
+
+        // Initiera Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let games = [];
+        let syncKey = localStorage.getItem('bt_synckey') || "";
+        let theme = localStorage.getItem('bt_theme') || 'synthwave';
+
+        // --- SYNKKONTROLL ---
+        function saveSyncKey() {
+            const val = document.getElementById('sync-key-input').value.trim();
+            if (val.length < 3) { alert("För kort nyckel!"); return; }
+            localStorage.setItem('bt_synckey', val);
+            window.location.reload(); 
+        }
+
+        function initApp() {
+            document.documentElement.setAttribute('data-theme', theme);
+            if (syncKey) {
+                document.getElementById('sync-warning').classList.add('hidden');
+                document.getElementById('sync-key-input').value = syncKey;
+                // Koppla till Firebase
+                db.ref('users/' + syncKey).on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    games = data || [];
+                    renderBoard();
+                });
+            } else {
+                document.getElementById('sync-warning').classList.remove('hidden');
+                games = JSON.parse(localStorage.getItem('bt_local_backup')) || [];
+                renderBoard();
+            }
+        }
+
+        const saveGames = () => {
+            if (syncKey) {
+                db.ref('users/' + syncKey).set(games);
+            } else {
+                localStorage.setItem('bt_local_backup', JSON.stringify(games));
+                renderBoard();
+            }
+        };
+
+        // --- SPELFUNKTIONER ---
+        const RAWG_KEY = 'a9b2d63374a4490d8a925c69e5622e2a';
+
+        async function searchGames(query) {
+            if (query.length < 2) return;
+            const res = await fetch(`https://api.rawg.io/api/games?search=${query}&key=${RAWG_KEY}&page_size=6`);
+            const data = await res.json();
+            const resultsDiv = document.getElementById('search-results');
+            resultsDiv.innerHTML = '';
+            resultsDiv.classList.remove('hidden');
+            
+            data.results.forEach(g => {
+                const item = document.createElement('div');
+                item.className = 'p-4 border-b border-white/5 hover:bg-cyan-500/10 cursor-pointer flex items-center gap-4 transition-all';
+                item.innerHTML = `<img src="${g.background_image}" class="w-12 h-16 object-cover rounded shadow"> <div><p class="font-bold text-sm text-white">${g.name}</p><p class="text-[10px] text-gray-500">${g.released ? g.released.split('-')[0] : 'Okänt'}</p></div>`;
+                item.onclick = () => {
+                    games.push({
+                        uid: Date.now().toString(),
+                        title: g.name,
+                        image: g.background_image,
+                        playtime: g.playtime || 15,
+                        status: 'backlog',
+                        progress: 0,
+                        notes: ""
+                    });
+                    saveGames();
+                    resultsDiv.classList.add('hidden');
+                    document.getElementById('search-input').value = '';
+                };
+                resultsDiv.appendChild(item);
+            });
+        }
+
+        function openModal(uid) {
+            const game = games.find(g => g.uid === uid);
+            const content = document.getElementById('modal-content');
+            content.innerHTML = `
+                <img src="${game.image}" class="w-full h-56 object-cover rounded-2xl mb-6 shadow-xl">
+                <h3 class="text-3xl font-bold mb-6 text-white">${game.title}</h3>
+                
+                <div class="grid grid-cols-2 gap-6 mb-8">
+                    <div class="bg-black/20 p-4 rounded-2xl">
+                        <label class="text-[10px] uppercase text-gray-500 font-bold tracking-widest block mb-2">Status</label>
+                        <select onchange="updateGame('${game.uid}', 'status', this.value)" class="w-full bg-transparent p-0 border-none text-cyan-400 font-bold focus:ring-0">
+                            <option value="backlog" ${game.status === 'backlog' ? 'selected' : ''}>Backlogg</option>
+                            <option value="playing" ${game.status === 'playing' ? 'selected' : ''}>Spelar</option>
+                            <option value="completed" ${game.status === 'completed' ? 'selected' : ''}>Klarat</option>
+                        </select>
+                    </div>
+                    <div class="bg-black/20 p-4 rounded-2xl">
+                        <label class="text-[10px] uppercase text-gray-500 font-bold tracking-widest block mb-2">Total tid (h)</label>
+                        <input type="number" value="${game.playtime}" onchange="updateGame('${game.uid}', 'playtime', this.value)" class="w-full bg-transparent p-0 border-none text-magenta-400 font-bold focus:ring-0">
+                    </div>
+                </div>
+
+                <div class="mb-8">
+                    <label class="flex justify-between text-[10px] uppercase text-gray-500 font-bold tracking-widest mb-4">Progression <span>${game.progress}%</span></label>
+                    <input type="range" value="${game.progress}" class="w-full accent-cyan-400" onchange="updateGame('${game.uid}', 'progress', this.value)">
+                </div>
+
+                <div class="mb-8">
+                    <label class="text-[10px] uppercase text-gray-500 font-bold tracking-widest mb-3 block">Mina Anteckningar</label>
+                    <textarea class="w-full h-32 p-4 rounded-2xl text-sm bg-black/20 border-white/5 focus:ring-1 ring-magenta-500 resize-none" placeholder="Strategier, minnen eller att göra..." oninput="updateGame('${game.uid}', 'notes', this.value)">${game.notes || ''}</textarea>
+                </div>
+
+                <button onclick="deleteGame('${game.uid}')" class="w-full text-red-500/50 hover:text-red-500 text-xs transition-all"><i class="fas fa-trash mr-2"></i>Ta bort från listan</button>
+            `;
+            document.getElementById('game-modal').classList.remove('hidden');
+        }
+
+        function updateGame(uid, field, val) {
+            const idx = games.findIndex(g => g.uid === uid);
+            if (field === 'playtime' || field === 'progress') val = parseFloat(val);
+            games[idx][field] = val;
+            saveGames();
+            if (field === 'status') closeModal();
+        }
+
+        function deleteGame(uid) {
+            if (confirm("Radera spelet?")) {
+                games = games.filter(g => g.uid !== uid);
+                saveGames();
+                closeModal();
+            }
+        }
+
+        function renderBoard() {
+            const cols = { backlog: [], playing: [], completed: [] };
+            let totalRemainingTime = 0;
+            
+            games.forEach(g => {
+                cols[g.status].push(g);
+                if (g.status !== 'completed') {
+                    totalRemainingTime += g.playtime * (1 - (g.progress / 100));
+                }
+            });
+
+            document.getElementById('stat-backlog').innerText = cols.backlog.length;
+            document.getElementById('stat-time').innerText = Math.round(totalRemainingTime) + "h";
+            document.getElementById('stat-completion').innerText = games.length ? Math.round((cols.completed.length / games.length) * 100) : 0;
+
+            ['backlog', 'playing', 'completed'].forEach(s => {
+                const container = document.getElementById(`col-${s}`);
+                document.getElementById(`count-${s}`).innerText = cols[s].length;
+                container.innerHTML = '';
+                
+                cols[s].forEach(g => {
+                    const card = document.createElement('div');
+                    card.className = 'game-card p-3 flex items-center gap-4 cursor-pointer hover:border-white/20';
+                    card.onclick = () => openModal(g.uid);
+                    card.innerHTML = `
+                        <img src="${g.image}" class="w-14 h-18 object-cover rounded-lg shadow-md">
+                        <div class="flex-grow min-w-0">
+                            <h3 class="font-bold text-sm text-white truncate">${g.title}</h3>
+                            <div class="flex items-center gap-2 mt-2">
+                                <div class="flex-grow bg-gray-900 h-1 rounded-full">
+                                    <div class="bg-gradient-to-r from-cyan-400 to-blue-500 h-full rounded-full" style="width: ${g.progress}%"></div>
+                                </div>
+                                <span class="text-[9px] text-gray-500 font-bold">${g.progress}%</span>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            });
+        }
+
+        // --- UI HELPERS ---
+        function changeTheme(t) {
+            theme = t;
+            document.documentElement.setAttribute('data-theme', t);
+            localStorage.setItem('bt_theme', t);
+            closeSettingsModal();
+        }
+
+        function closeModal() { document.getElementById('game-modal').classList.add('hidden'); }
+        function openSettingsModal() { document.getElementById('settings-modal').classList.remove('hidden'); }
+        function closeSettingsModal() { document.getElementById('settings-modal').classList.add('hidden'); }
+
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            clearTimeout(window.sTimer);
+            window.sTimer = setTimeout(() => searchGames(e.target.value), 400);
+        });
+
+        initApp();
+    </script>
+</body>
+</html>
