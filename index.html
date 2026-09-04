@@ -3,13 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backlog Tracker</title>
+    <title>Backlog Tracker Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 
 <!-- Firebase SDK Legacy -->
     <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-database-compat.js"></script>
+
+<!-- Canvas Confetti -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<!-- Tone.js för ljudgenerering -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <link rel="manifest" id="dynamic-manifest">
     <style>
@@ -151,7 +157,7 @@
             </div>
             <div class="bg-black/20 backdrop-blur-sm p-6 rounded-2xl border border-white/5 flex flex-col items-center">
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Timmar Kvar</span>
-                <span class="text-4xl font-black" style="color: var(--neon-magenta)"><span id="stat-time">0</span>h</span>
+                <span class="text-4xl font-black" style="color: #ff00ff;"><span id="stat-time">0</span>h</span>
             </div>
             <div class="bg-black/20 backdrop-blur-sm p-6 rounded-2xl border border-white/5 flex flex-col items-center">
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Slutfört</span>
@@ -181,7 +187,7 @@
                 <div id="col-backlog" class="space-y-4 min-h-[200px]"></div>
             </div>
             <div class="space-y-4">
-                <h2 class="font-black text-lg border-b-2 border-[#ff00ff] uppercase tracking-tighter px-2 flex justify-between" style="color: var(--neon-magenta)">Spelar Nu <span id="count-playing">0</span></h2>
+                <h2 class="font-black text-lg border-b-2 border-[#ff00ff] uppercase tracking-tighter px-2 flex justify-between" style="color: #ff00ff;">Spelar Nu <span id="count-playing">0</span></h2>
                 <div id="col-playing" class="space-y-4 min-h-[200px]"></div>
             </div>
             <div class="space-y-4">
@@ -361,17 +367,23 @@
                 else if (p.includes('xbox')) platClass = "bg-green-500/20 text-green-400";
                 else if (p.includes('switch')) platClass = "bg-red-500/20 text-red-400";
 
+                // Nya variabler för visuell indikering av avklarade spel
+                const isCompleted = game.status === 'completed';
+                const titleIcon = isCompleted ? ' <i class="fas fa-check-circle text-emerald-400 ml-1" title="Avklarat"></i>' : '';
+                const progressGradient = isCompleted ? 'from-emerald-500 to-green-500' : 'from-cyan-500 to-blue-500';
+                const progressTextClass = isCompleted ? 'text-emerald-400' : 'text-gray-500';
+
                 card.innerHTML = `
                     <div class="flex flex-1 p-3 gap-4 cursor-pointer" onclick="openModal('${game.uid}')">
                         <img src="${game.image}" class="w-16 h-20 object-cover rounded-lg border border-white/5" />
                         <div class="flex-grow min-w-0 flex flex-col justify-center">
-                            <h3 class="font-bold text-sm text-inherit truncate mb-1 group-hover:text-cyan-400 transition-colors">${game.title}</h3>
+                            <h3 class="font-bold text-sm text-inherit truncate mb-1 group-hover:text-cyan-400 transition-colors">${game.title}${titleIcon}</h3>
                             <div class="flex items-center gap-2 mb-2">
                                 <span class="text-[10px] font-black px-2 py-0.5 rounded-full ${platClass}">${game.platform}</span>
-                                <span class="text-[10px] font-bold text-gray-500">${game.progress}%</span>
+                                <span class="text-[10px] font-bold ${progressTextClass}">${game.progress}%</span>
                             </div>
                             <div class="w-full bg-black/40 h-1.5 rounded-full overflow-hidden">
-                                <div class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full" style="width: ${game.progress}%"></div>
+                                <div class="bg-gradient-to-r ${progressGradient} h-full" style="width: ${game.progress}%"></div>
                             </div>
                         </div>
                     </div>
@@ -447,7 +459,20 @@
         }
 
         function closeModal() { document.getElementById('game-modal').classList.add('hidden'); document.body.style.overflow = 'auto'; }
-        function updateGameStatus(uid, s) { const g = games.find(x => x.uid === uid); if (g) { g.status = s; if (s === 'completed') g.progress = 100; saveGames(); } }
+        function updateGameStatus(uid, s) { 
+    const g = games.find(x => x.uid === uid); 
+    if (g) { 
+        // Kontrollera om spelet flyttas till 'completed' från en annan kategori
+        if (s === 'completed' && g.status !== 'completed') {
+            shootConfetti();
+            playVictorySound();
+            g.progress = 100; 
+        }
+        
+        g.status = s; 
+        saveGames(); 
+    } 
+}
         function updateProgress(uid, v) { const g = games.find(x => x.uid === uid); if (g) { g.progress = parseInt(v); saveGames(); } }
         function updateNotes(uid, t) { const g = games.find(x => x.uid === uid); if (g) { g.notes = t; localStorage.setItem('neon_games', JSON.stringify(games)); syncToFirebase(); } }
         function updatePlaytime(uid, h) { const g = games.find(x => x.uid === uid); if (g) { g.playtime = parseFloat(h) || 0; saveGames(); } }
@@ -496,6 +521,33 @@
                 searchResultsDiv.appendChild(d);
             });
         }
+
+// --- BELÖNINGSEFFEKTER ---
+
+function shootConfetti() {
+    confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#00f3ff', '#ff00ff', '#8a2be2', '#00ff80'] // Neonfärger
+    });
+}
+
+function playVictorySound() {
+    // Tone.start() krävs för att webbläsaren ska tillåta ljuduppspelning
+    Tone.start();
+    
+    // Skapar en synthesizer kopplad till användarens högtalare
+    const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+    synth.volume.value = -10; // Sänker volymen något
+    
+    const now = Tone.now();
+    // Spelar ett snabbt arpeggio (C-dur)
+    synth.triggerAttackRelease("C4", "8n", now);
+    synth.triggerAttackRelease("E4", "8n", now + 0.1);
+    synth.triggerAttackRelease("G4", "8n", now + 0.2);
+    synth.triggerAttackRelease("C5", "2n", now + 0.3);
+}
 
         initVisuals();
         renderBoard();
